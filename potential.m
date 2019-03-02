@@ -3,9 +3,9 @@ global M N u0 uR totalPts nPnts nMiss;
 
 
 
-M = 10;
+M = 37;
 
-N = 10;
+N = 32;
 u0 = 1.0;
 domX = [0 1.0];
 domY = [0 1.0];
@@ -87,7 +87,7 @@ for i=2:M-1
    end
 end
 
-x = SOR(A,b,x0,1E-3);
+x = SOR(A,b,x0,1E-6);
 
 solution = rebuildGrid(x,nPnts);
 [vx,vy] = detVel(solution,dx);
@@ -126,7 +126,7 @@ if abs(e) >= 1
     disp ('largest eigen value of iterative matrix is not less than 1') 
     disp ('not convergent. ')
     disp(e)
-    %return
+    return
 end
  
 
@@ -144,14 +144,14 @@ tol = t*ones(na,1);
 k= 1;
  
 X( : , 1 ) = X0;
-err= 1E6; %intial error assumtion for looping
+err= 1E6; %intial error assumption for looping
 while sum(abs(err) >= tol) ~= zeros(na,1)
     X ( : ,k+ 1 ) = (D+w*L) \ ( D*(1-w) - w*U)*X( : ,k) + (D+ w*L)\B;% SOR formula
     err = X( :,k+1) - X( :, k);% finding error
     k = k + 1; 
 end
  
-fprintf (' The final ans obtaibed after %d itaration which is  \n', k)
+fprintf (' The final ans obtained after %d iterations\n', k)
 X( : ,k)
 end
 
@@ -167,12 +167,12 @@ function [row, rhs] = detBC(cells,id,dx,dy)
     bch=0;
     if(cc==2)
         bch=-1;
-    elseif(cc==M-1)
+    elseif(cc==N-1)
         bch=1;
     end
     if(rr==2)
         bcv=1;
-    elseif(rr==N-1)
+    elseif(rr==M-1)
         bcv=-1;
     end
     %check BC's
@@ -261,9 +261,9 @@ function [velx,vely] = detVel(sol,dx)
 end
 
 function drawCells(domX,domY,dx,cells)
-global N;
+global N M;
 cgX=linspace(domX(1)-dx,domX(2)+dx,N+2);
-cgY=linspace(domY(1)-dx,domY(2)+dx,N+2);
+cgY=linspace(domY(1)-dx,domY(2)+dx,M+2);
 [cx,cy]=meshgrid(cgX,cgY);
 C = [[cells zeros(size(cells,1),1)] ; zeros(1,size(cells,2)+1)];
 colormap('colorcube');

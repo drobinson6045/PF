@@ -87,7 +87,7 @@ for i=2:M-1
    end
 end
 
-x = SOR(A,b,x0,1E-6);
+x = SOR(A,b,x0,1E-3);
 
 solution = rebuildGrid(x,nPnts);
 [vx,vy] = detVel(solution,dx);
@@ -98,7 +98,6 @@ drawCells(domX,domY,dx,cells);
 hold on
 %draw vel field
 [xm, ym] = meshgrid(xGrid(2:N-1),yGrid(2:M-1));
-size(xm)
 quiver(xm,ym,vx,vy);
 
 

@@ -145,7 +145,7 @@ k= 1;
 x( : , 1 ) = x0;
 err= 1E6; %intial error assumption for looping
 while sum(abs(err) >= tol) ~= zeros(na,1)
-    x ( : ,k+ 1 ) = (D+w*L) \ ( D*(1-w) - w*U)*x( : ,k) + (D+ w*L)\B;% SOR formula
+    x( : ,k+ 1 ) = (D+w*L) \ ( D*(1-w) - w*U)*x( : ,k) + (D+ w*L)\B;% SOR formula
     err = x( :,k+1) - x( :, k);% finding error
     k = k + 1; 
 end

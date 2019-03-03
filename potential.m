@@ -87,7 +87,7 @@ for i=2:M-1
    end
 end
 
-x = SOR(A,b,x0,1E-3);
+x = sor(A,b,x0,1E-3);
 
 solution = rebuildGrid(x,nPnts);
 [vx,vy] = detVel(solution,dx);
@@ -103,7 +103,7 @@ quiver(xm,ym,vx,vy);
 
 
 
-function X = SOR( A ,B, X0 ,t)
+function x = sor( A ,B, x0 ,t)
 [na , ma ] = size (A);
 [nb , mb ] = size (B);
 if nb ~= na || mb~=1
@@ -129,7 +129,7 @@ if abs(e) >= 1
 end
  
 
-[nx, mx] = size(X0);
+[nx, mx] = size(x0);
 if nx ~= na || mx ~= 1
     disp( 'ERROR: check input')
     return
@@ -142,16 +142,16 @@ end
 tol = t*ones(na,1);
 k= 1;
  
-X( : , 1 ) = X0;
+x( : , 1 ) = x0;
 err= 1E6; %intial error assumption for looping
 while sum(abs(err) >= tol) ~= zeros(na,1)
-    X ( : ,k+ 1 ) = (D+w*L) \ ( D*(1-w) - w*U)*X( : ,k) + (D+ w*L)\B;% SOR formula
-    err = X( :,k+1) - X( :, k);% finding error
+    x ( : ,k+ 1 ) = (D+w*L) \ ( D*(1-w) - w*U)*x( : ,k) + (D+ w*L)\B;% SOR formula
+    err = x( :,k+1) - x( :, k);% finding error
     k = k + 1; 
 end
  
 fprintf (' The final ans obtained after %d iterations\n', k)
-X( : ,k)
+x( : ,k)
 end
 
 function [row, rhs] = detBC(cells,id,dx,dy)

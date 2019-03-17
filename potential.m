@@ -2,15 +2,18 @@
 
 clear();
 
+scale = 3;
+M = 8*scale+1.0;
 
-M = 12;
-
-N = 12;
-u0 = 25.0;
+N = 8*scale+1.0;
+u0 = 1.0;
 domX = [0 1.0];
 domY = [0 1.0];
-dx = (domX(2)-domX(1))/(N-1);
-dy = (domY(2)-domY(1))/(N-1);
+
+
+
+
+%Initialization
 xGrid = linspace(domX(1),domX(2),N);
 yGrid = linspace(domY(1),domY(2),M);
 cells = ones(M+1,N+1);
@@ -18,94 +21,65 @@ cells(:,1)=-1.0;
 cells(:,N+1)=-1.0;
 cells(1,:)=0.0;
 cells(M+1,:)=0.0;
-
-
-%Initialization
-
     %Fill solid cells for outflow boundary
-cells(M-3:M,N-1:N)=0.0;
-cells(M-3:M,1:3)=0.0;
-
-nPnts = zeros(M,1);
-nMiss = zeros(M,1);
-
+%cells(M-6*scale+1:M,(N-3*scale+1):N)=0.0;%bottom left block
+%cells(M-6*scale+1:M,1:(3*scale+1))=0.0;%bottom right block
+cells(1:M/4+1,N/4+2:3*N/4+1)=0.0;%topblock  (quarters)
+cells(M/2+1:end,N/4+2:3*N/4+1)=0.0;%bottom block  (quarters)
+%cells(M/2+1:M,:)=0.0;
 %fill solid cells to block outflow
-for j = 1:M+1
-    if(cells(j,N)==0)%right side
-        cells(j,N+1)=0.0;
-    end
-    if(cells(j,2)==0)%left side
-        cells(j,1)=0.0;
-    end
-end
 
-
-    %build mapping between column and grid space
-idLoc = {};
-idMap = zeros(M,N);
-total=0;
-for j=2:M-1
-    count=0;
-    for k=2:N-1
-        cellSum = sum(abs(cells(j:j+1,k))+abs(cells(j:j+1,k+1)));
-        if(cellSum==4 || cellSum==3 )%corner or non boundary point
-            total=total+1;
-            count=count+1;
-            idLoc=[idLoc, [j k] ];
-            idMap(j,k)=total;
-        end
-    end
-end
-totalPts = total;
-rhs = zeros(totalPts);
-x0 = zeros(totalPts,1);
-%count missing right through cells
-cLeft=0;
-cRight=0;
-for i=2:M
-    if(cells(i,N+1)==-1)
-        cRight=cRight + 1;
-    end
-    if(cells(i,1)==-1)
-        cLeft=cLeft + 1;
-    end
-end
-
-uR = u0*cLeft/cRight;%conservation motivated
-%uR = u0;
-%fill array
-[A, b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap);
-disp("built matrix")
-%build initial guess of uniform flow
-for i=2:M-1
-   if(i==1)
-       for j=1:nPnts(i)
-           x0(j)=xGrid(j+1);
-       end
-   else
-       for j=1:nPnts(i)-nPnts(i-1)
-           x0(nPnts(i-1)+j)=xGrid(j+1);
-       end
-   end
-end
-%x0 = ones(totalPts,1);
-x = sor(A,b,x0,1E-3);
-
-solution = rebuildGrid(x,M,N,idLoc,totalPts);
-[vx,vy] = detVel(solution,dx,M,N);
-
+[solution, vx, vy] = potentialSolve(cells,domX,domY,u0);
 %draw cells
-drawCells(domX,domY,dx,cells,M,N);
+drawCells(domX,domY,cells);
 
 hold on
 %draw vel field
 [xm, ym] = meshgrid(xGrid(2:N-1),flip(yGrid(2:M-1)));
-q=quiver(xm,ym,vx,vy);
+q=quiver(xm,ym,vx,-vy);
 q.LineWidth=1.0;
-axis equal
-streamline(xm,ym,vx,vy);
 
+figure()
+surf(xm,ym,sqrt(vx.^2+vy.^2));
+colormap('jet');
+colorbar();
+view(2);
+axis equal;
+%startx= 2*dx*[1.0,1.0,1.0];
+%starty= [1.0/8.0, 0.25, 3.0/8.0];
 
+function x0 = naiiveSOR(A,b,x0,w,tol)
+    nPnts=size(x0,1);
+    error=1E6;
+    alt=0;
+    while(error>tol)
+        xp= x0;
+        for i=1:nPnts
+            if(i~=1)
+                term=dot([A(i,1:i-1) A(i,i+1:end)],[x0(1:i-1); x0(i+1:end)]);
+                %scatter(i,term)
+                %hold on
+            else
+                term=dot(A(1,2:end),x0(2:end));
+                %scatter(i,term)
+                %hold on
+            end
+            x0(i)=(1.0-w)*x0(i)-w/A(i,i)*(b(i)-term);%sor step
+            
+        end
+        
+        error=norm((x0-xp),1)
+        
+    end
+end
+
+function x0 = buildGuess(dx,totalPts, idLoc)
+    x0 = zeros(totalPts,1);
+    for i=1:totalPts
+        loc= idLoc{1,i};
+        x0(i)=loc(2)*dx;
+    end
+end
 
 function x = sor( A ,B, x0 ,t)
 [na , ma ] = size (A);
@@ -189,7 +163,7 @@ function [A,b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap)
         if(abs(bcv)+abs(bch)==0)
            row(id-1:id+1)=[1.0,-4.0,1.0];
            row(idMap(loc(1)-1,loc(2)))=1.0;%top point
-           row(idMap(loc(1),loc(2)+1))=1.0;%bottom point
+           row(idMap(loc(1)+1,loc(2)))=1.0;%bottom point
            rhs=0.0;
            
         end
@@ -211,40 +185,10 @@ function [A,b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap)
                 else
                     rhs = -uR*dx;
                 end
-            else%corner
-                row(id)=row(id)-1.0;
-                %find other referene point
-                m= [0 bch];
-                curPoint = loc + m;
-
-                %decide on which way to step
-                above = sum(cells(curPoint(1),curPoint(2):curPoint(2)+1));
-                if(above>0 || (above==0 && sum(abs(cells(curPoint(1),curPoint(2):curPoint(2)+1)))~=0))
-                    curPoint(1)=curPoint(1)-1;%move up one
-                else
-                    curPoint(1)=curPoint(1)+1;%move down one
-                end
-                %check if valid
-                if(idMap(curPoint(1),curPoint(2))==0)%at a boundary point
-                    %on boundary need to figure out bc of point
-                    if(bch<0)
-                        side=0;
-                    else
-                        side=1;
-                    end
-                    cellSum = sum(cells(curPoint(1):curPoint(1)+1,curPoint(2)+side));%sum on bc side
-                    curPoint(2)=curPoint(2)-bch;%guaranteed to be this point
-                    if(cellSum==0)%solid boundary
-                        rhs = rhs+0.0;
-                    else %through boundary
-                        if(bch < 0)
-                            rhs=rhs + u0*dx;
-                        else
-                            rhs=rhs-uR*dx;
-                        end
-                    end
-                end   
-                row(idMap(curPoint(1),curPoint(2)))=1.0;%assign value at correspoding column
+            else%corner %do backwards 1st order 2nd derivative
+                row(id-2:id)=[1.0, -2.0, 1.0];
+                rhs = 0.0;
+             
             end
         elseif(bch==0 && bcv~=0)
             row(id-1:id+1)=row(id-1:id+1)+[1.0, -2.0, 1.0];
@@ -255,26 +199,34 @@ function [A,b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap)
         if(bcv~=0)%if vertical bc
             %take care of points we know
             if(bcv>0)
-                row(id)=row(id)-1.0;
-                row(idMap(loc(1)-1,loc(2)))=1.0;%top point
+%                 row(id)=row(id)-1.0;
+%                 row(idMap(loc(1)-1,loc(2)))=1.0;%top point
                 cellSum=sum(cells(loc(1)+2,loc(2):loc(2)+1));%sum bottom of next point
-                curPoint = loc + [1 0];
+%                 curPoint = loc + [1 0];
             else
-                row(id)=row(id)-1.0;
-                row(idMap(loc(1)+1,loc(2)))=1.0;%bottom point
+%                 row(id)=row(id)-1.0;
+%                 row(idMap(loc(1)+1,loc(2)))=1.0;%bottom point
                 cellSum=sum(cells(loc(1)-1,loc(2):loc(2)+1));%sum top of next point
-                curPoint = loc + [-1 0];
+%                 curPoint = loc + [-1 0];
             end
             if(cellSum~=0)%we are at a vertical wall
-                sumLeft=sum(cells(curPoint(1):curPoint(1)+1,curPoint(2)));
-                if(sumLeft==0)%left boundary 
-                    curPoint(2)=curPoint(2)+1;%take right point
-                else
-                    curPoint(2)=curPoint(2)-1;%take left point
-                end
-                row(idMap(curPoint(1),curPoint(2)))=1.0;
-                row(id)=row(id)-1.0;
+                %do backwards laplace
+                row(id)=row(id)+1.0;
+                row(idMap(loc(1)-bcv,loc(2)))=row(idMap(loc(1)-bcv,loc(2)))-2.0;
+                row(idMap(loc(1)-2*bcv,loc(2)))=row(idMap(loc(1)-2*bcv,loc(2)))+1.0;
+%                 sumLeft=sum(cells(curPoint(1):curPoint(1)+1,curPoint(2)));
+%                 if(sumLeft==0)%left boundary 
+%                     curPoint(2)=curPoint(2)+1;%take right point
+%                 else
+%                     curPoint(2)=curPoint(2)-1;%take left point
+%                 end
+%                 row(idMap(curPoint(1),curPoint(2)))=1.0;
+%                 row(id)=row(id)-1.0;
+            else
+                row(idMap(loc(1)-bcv,loc(2)))=row(idMap(loc(1)-bcv,loc(2)))+1.0;
+                row(id)=row(id)-1.0;      
             end
+            
         elseif(bcv==0 && bch~=0)
             row(id)=row(id)-2.0;
             row(idMap(loc(1)-1,loc(2)))=1.0;%top point
@@ -347,17 +299,79 @@ function [velx,vely] = detVel(sol,dx,M,N)
     end
 end
 
-function drawCells(domX,domY,dx,cells,M,N)
-
+function drawCells(domX,domY,cells)
+[M,N]=size(cells);
+M=M-1;N=N-1;
+dx = (domX(2)-domX(1))/(N-1);
+dy = (domY(2)-domY(1))/(N-1);
 cgX=linspace(domX(1)-dx,domX(2)+dx,N+2);
-cgY=linspace(domY(2)+dx,domY(1)-dx,M+2);
+cgY=linspace(domY(2)+dy,domY(1)-dy,M+2);
 [cx,cy]=meshgrid(cgX,cgY);
 C = [[cells zeros(size(cells,1),1)] ; zeros(1,size(cells,2)+1)];
 colormap('colorcube');
 pcolor(cx,cy,C);
 end
 
+function [cells,idLoc,idMap,total]= createMapping(cells)
+%Fills empty boundary points then ids tracked points
+    [M,N]=size(cells);
+    for j = 1:M
+        if(cells(j,N-1)==0)%right side
+            cells(j,N)=0;
+        elseif(cells(j,2)==0)%left side
+            cells(j,1)=0;
+        end
+    end
+    M=M-1;
+    N=N-1;
+   
+    idLoc = {};
+    idMap = zeros(M,N);
+    total=0;
+    for j=2:M-1
+        count=0;
+        for k=2:N-1
+            cellSum = sum(abs(cells(j:j+1,k))+abs(cells(j:j+1,k+1)));
+            if(cellSum==4)%corner or non boundary point
+                total=total+1;
+                count=count+1;
+                idLoc=[idLoc, [j k] ];
+                idMap(j,k)=total;
+            end
+        end
+    end
+end
 
+function [solution, vx, vy] = potentialSolve(cells,domX,domY,u0)
+        %build mapping between column and grid space
+    [cells,idLoc, idMap, totalPts] = createMapping(cells);
+    [M,N]=size(cells);
+    M=M-1;N=N-1;
+    dx = (domX(2)-domX(1))/(N-1);
+    dy = (domY(2)-domY(1))/(N-1);
+    %count missing right through cells
+    cLeft=0;
+    cRight=0;
+    for i=2:M
+        if(cells(i,N+1)==-1)
+            cRight=cRight + 1;
+        end
+        if(cells(i,1)==-1)
+            cLeft=cLeft + 1;
+        end
+    end
+    uR = u0*cLeft/cRight;%conservation motivated
+    %fill array
+    [A, b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap);
+    disp("built matrix")
+    %x0 = A\b;
+    x0 = buildGuess(dx,totalPts,idLoc);
+   
+    w=0.2;
+    x = naiiveSOR(A,b,x0,w,1E-4);
+    solution = rebuildGrid(x,M,N,idLoc,totalPts);
+    [vx,vy] = detVel(solution,dx,M,N);
+end
 
 
 

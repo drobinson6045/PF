@@ -2,7 +2,7 @@
 
 clear();
 
-scale = 3;
+scale = 6;
 M = 8*scale+1.0;
 
 N = 8*scale+1.0;
@@ -24,12 +24,13 @@ cells(M+1,:)=0.0;
     %Fill solid cells for outflow boundary
 %cells(M-6*scale+1:M,(N-3*scale+1):N)=0.0;%bottom left block
 %cells(M-6*scale+1:M,1:(3*scale+1))=0.0;%bottom right block
-cells(1:M/4+1,N/4+2:3*N/4+1)=0.0;%topblock  (quarters)
-cells(M/2+1:end,N/4+2:3*N/4+1)=0.0;%bottom block  (quarters)
+%cells(1:M/4+1,N/4+2:3*N/4+1)=0.0;%topblock  (quarters)
+%cells(M/2+1:end,N/4+2:3*N/4+1)=0.0;%bottom block  (quarters)
 %cells(M/2+1:M,:)=0.0;
 %fill solid cells to block outflow
 
 [solution, vx, vy] = potentialSolve(cells,domX,domY,u0);
+vx = vx - ones(size(vx));
 %draw cells
 drawCells(domX,domY,cells);
 
@@ -40,7 +41,7 @@ q=quiver(xm,ym,vx,-vy);
 q.LineWidth=1.0;
 
 figure()
-surf(xm,ym,sqrt(vx.^2+vy.^2));
+surf(xm,ym,log10(vx.^2+vy.^2));
 colormap('jet');
 colorbar();
 view(2);
@@ -51,7 +52,6 @@ axis equal;
 function x0 = naiiveSOR(A,b,x0,w,tol)
     nPnts=size(x0,1);
     error=1E6;
-    alt=0;
     while(error>tol)
         xp= x0;
         for i=1:nPnts
@@ -67,7 +67,7 @@ function x0 = naiiveSOR(A,b,x0,w,tol)
             x0(i)=(1.0-w)*x0(i)-w/A(i,i)*(b(i)-term);%sor step
             
         end
-        
+        %x0
         error=norm((x0-xp),1)
         
     end
@@ -364,10 +364,9 @@ function [solution, vx, vy] = potentialSolve(cells,domX,domY,u0)
     %fill array
     [A, b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap);
     disp("built matrix")
-    %x0 = A\b;
+    %x = A\b;
     x0 = buildGuess(dx,totalPts,idLoc);
-   
-    w=0.2;
+    w=1.3;
     x = naiiveSOR(A,b,x0,w,1E-4);
     solution = rebuildGrid(x,M,N,idLoc,totalPts);
     [vx,vy] = detVel(solution,dx,M,N);

@@ -2,7 +2,7 @@
 
 clear();
 
-scale = 6;
+scale = 2;
 M = 8*scale+1.0;
 
 N = 8*scale+1.0;
@@ -30,7 +30,7 @@ cells(M+1,:)=0.0;
 %fill solid cells to block outflow
 
 [solution, vx, vy] = potentialSolve(cells,domX,domY,u0);
-vx = vx - ones(size(vx));
+%vx = vx - ones(size(vx));
 %draw cells
 drawCells(domX,domY,cells);
 
@@ -50,27 +50,70 @@ axis equal;
 %starty= [1.0/8.0, 0.25, 3.0/8.0];
 
 function x0 = naiiveSOR(A,b,x0,w,tol)
-    nPnts=size(x0,1);
-    error=1E6;
-    while(error>tol)
-        xp= x0;
-        for i=1:nPnts
-            if(i~=1)
-                term=dot([A(i,1:i-1) A(i,i+1:end)],[x0(1:i-1); x0(i+1:end)]);
-                %scatter(i,term)
-                %hold on
-            else
-                term=dot(A(1,2:end),x0(2:end));
-                %scatter(i,term)
-                %hold on
-            end
-            x0(i)=(1.0-w)*x0(i)-w/A(i,i)*(b(i)-term);%sor step
-            
-        end
-        %x0
-        error=norm((x0-xp),1)
-        
+% NO PASSING A INTO THIS ROUTINE ALLOWED!!!!
+
+N = numel(x0);
+res = 1e6;
+while (norm(res,inf) > tol)
+  for i = 1:N
+    x0(i) = (1-w)*x0(i) + w/A(i,i) * (b(i) - ...
+    A(i,1:i-1)*x0(1:i-1) - A(i,i+1:end)*x0(i+1:end));
+  end
+  res = A*x0 - b;
+
+  z = reshape(x0,sqrt(N),sqrt(N));
+  surf(z)
+  pause
+
+
+end
+%
+%D = diag(diag(A));
+%L = tril(A) - D;
+%U = triu(A) - D;
+%
+%iterMat = pinv(D + w*L)*(w*U + (w-1)*D);
+%e = sort(abs(eig(iterMat)));
+%e(end-1:end)
+
+%x0 = x0_2;
+%res = 1e6;
+%while (norm(res,inf) > tol)
+%  x0 = pinv(D+w*L)*(w*b-(w*U+(w-1)*D)*x0);
+%  res = A*x0 - b;
+%end
+
+end
+
+
+function x0 = naiiveSOR2(A,b,x0,w,tol)
+  nPnts=size(x0,1);
+
+  error=1E6;
+  N = sqrt(nPnts);
+  while(error>tol)
+%    xp= x0;
+    for i=1:nPnts
+%      if(i~=1)
+        term=dot([A(i,1:i-1) A(i,i+1:end)],[x0(1:i-1); x0(i+1:end)]);
+        %scatter(i,term)
+        %hold on
+%      else
+%        term=dot(A(1,2:end),x0(2:end));
+%        %scatter(i,term)
+%        %hold on
+%      end
+      x0(i)=(1.0-w)*x0(i)+w/A(i,i)*(b(i)-term);%sor step
     end
+    %x0
+    error = norm(A*x0 - b,inf);
+
+    clf
+    surf(reshape(x0,N,N));
+    pause
+%    error=norm((x0-xp),1)
+      
+  end
 end
 
 function x0 = buildGuess(dx,totalPts, idLoc)
@@ -364,10 +407,11 @@ function [solution, vx, vy] = potentialSolve(cells,domX,domY,u0)
     %fill array
     [A, b] = buildMatrix(cells,dx,dy,u0,uR,totalPts, idLoc, idMap);
     disp("built matrix")
-    %x = A\b;
+%    x0 = pinv(A)*b;
     x0 = buildGuess(dx,totalPts,idLoc);
-    w=1.3;
-    x = naiiveSOR(A,b,x0,w,1E-4);
+    x0 = rand(size(x0));
+    w=1.7;
+    x = naiiveSOR2(A,b,x0,w,1E-4);
     solution = rebuildGrid(x,M,N,idLoc,totalPts);
     [vx,vy] = detVel(solution,dx,M,N);
 end
